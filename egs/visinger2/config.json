@@ -16,16 +16,16 @@
     "init_lr_ratio": 1,
     "warmup_epochs": 0,
     "c_mel": 45,
-    "save_dir": "/root/logdir/visinger2" 
+    "save_dir": "logdir/visinger2"
   },
   "data": {
-    "data_dir":"data/opencpop",
+    "data_dir":"data/taffy",
     "dataset_type": "SingDataset",
     "collate_type": "SingCollate",
     "training_filelist":"train.list",
-    "training_labellist":"trainset.txt",
+    "training_labellist":"transcriptions.txt",
     "validation_filelist":"test.list",
-    "validation_labellist":"testset.txt",
+    "validation_labellist":"transcriptions.txt",
     "max_wav_value": 32768.0,
     "sample_rate": 44100,
     "n_fft": 2048,

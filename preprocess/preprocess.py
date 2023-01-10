@@ -9,6 +9,7 @@ from utils import audio
 import utils.utils as utils
 from tqdm import tqdm
 import pyworld as pw
+from random import shuffle
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -64,6 +65,21 @@ def process(args, hps):
         results.append(executor.submit(partial(process_utterance, hps, hps.data.data_dir, item)))
     return [result.result() for result in tqdm(results)]
 
+def split_dataset(hps):
+    metadata = [
+        item.strip() for item in open(
+            os.path.join(hps.data.data_dir, "file.list")).readlines()
+    ]
+    shuffle(metadata)
+    train_set = metadata[:-10]
+    test_set =  metadata[-10:]
+    with open(os.path.join(hps.data.data_dir, "train.list"), "w") as ts:
+        for item in train_set:
+            ts.write(item+"\n")
+    with open(os.path.join(hps.data.data_dir, "test.list"), "w") as ts:
+        for item in test_set:
+            ts.write(item+"\n")
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',
@@ -74,8 +90,8 @@ def main():
     args = parser.parse_args()
     hps = utils.get_hparams_from_file(args.config)
 
-    process(args, hps)
-
+    # process(args, hps)
+    split_dataset(hps)
 
 if __name__ == "__main__":
     main()
