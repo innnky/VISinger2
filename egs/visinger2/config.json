@@ -1,7 +1,9 @@
 {
   "train": {
-    "log_interval": 2000,
-    "eval_interval": 20000,
+    "log_interval": 100,
+    "eval_interval": 1000,
+    "auto_clear_checkpoints": true,
+    "keep_checkpoints": 3,
     "seed": 1234,
     "port": 8001,
     "epochs": 10000,
@@ -9,7 +11,7 @@
     "betas": [0.8, 0.99],
     "eps": 1e-9,
     "batch_size": 8,
-    "accumulation_steps": 1,
+    "accumulation_steps": 100,
     "fp16_run": false,
     "lr_decay": 0.998,
     "segment_size": 10240,
@@ -19,7 +21,7 @@
     "save_dir": "logdir/visinger2"
   },
   "data": {
-    "data_dir":"data/taffy",
+    "data_dir":"../../data/taffy",
     "dataset_type": "SingDataset",
     "collate_type": "SingCollate",
     "training_filelist":"train.list",

@@ -91,8 +91,8 @@ def run(rank, n_gpus, hps):
       hps.train.learning_rate, 
       betas=hps.train.betas, 
       eps=hps.train.eps)
-  net_g = DDP(net_g, device_ids=[rank])
-  net_d = DDP(net_d, device_ids=[rank])
+  net_g = DDP(net_g, device_ids=[rank], find_unused_parameters=True)
+  net_d = DDP(net_d, device_ids=[rank], find_unused_parameters=True)
   try:
     _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.train.save_dir, "G_*.pth"), net_g, optim_g)
     _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.train.save_dir, "D_*.pth"), net_d, optim_d)
@@ -253,7 +253,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
           hps.data.fmin, 
           hps.data.fmax
       )
-
     y_d_hat_r, y_d_hat_g, _, _ = net_d(y, y_hat.detach())
     loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(y_d_hat_r, y_d_hat_g)
     loss_disc_all = loss_disc
@@ -272,9 +271,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
     loss_spec_dsp = F.l1_loss(y_logspec, y_ddsp_logspec) * 45
  
    
-    loss_dur = F.mse_loss(predict_dur[:, 0, :], gtdur.float().squeeze(1)) * 0.1
-    loss_note_dur = F.mse_loss(predict_dur[:, 1, :], dur.float().squeeze(1)) * 0.1
-
+    # loss_dur = F.mse_loss(predict_dur[:, 0, :], gtdur.float().squeeze(1)) * 0.1
+    # loss_note_dur = F.mse_loss(predict_dur[:, 1, :], dur.float().squeeze(1)) * 0.1
+    # print(loss_dur,loss_note_dur)
+    loss_dur = 0
+    loss_note_dur = 0
     loss_mel_am = F.mse_loss(mel * mask, predict_mel * mask) #* 10
 
     loss_fm = feature_loss(fmap_r, fmap_g)
@@ -341,8 +342,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
         #     )
         
         evaluate(hps, net_g, eval_loader, writer_eval)
-        utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch, os.path.join(hps.train.save_dir, "G_{}.pth".format(global_step)))
-        utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch, os.path.join(hps.train.save_dir, "D_{}.pth".format(global_step)))
+        utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch, os.path.join(hps.train.save_dir, "G_{}.pth".format(global_step)), hps)
+        utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch, os.path.join(hps.train.save_dir, "D_{}.pth".format(global_step)), hps)
         net_g.train()
     global_step += 1
   
@@ -359,7 +360,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
         pitchid = data_dict["pitchid"]
         dur = data_dict["dur"]
         slur = data_dict["slur"]
-        # gtdur = data_dict["gtdur"]
+        gtdur = data_dict["gtdur"]
         mel = data_dict["mel"]
         f0 = data_dict["f0"]
         wav = data_dict["wav"]
@@ -378,6 +379,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             wav = wav.cuda(0)
             mel = mel.cuda(0)
             f0  = f0.cuda(0)
+            gtdur = gtdur.cuda(0)
         
         # remove else
         phone = phone[:1]
@@ -388,8 +390,9 @@ def evaluate(hps, generator, eval_loader, writer_eval):
         wav = wav[:1]
         mel = mel[:1]
         f0 = f0[:1]
+        gtdur = gtdur[:1]
         break
-      y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur)
+      y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur,gtdur=gtdur, F0=f0)
       spec = spectrogram_torch(
             wav.squeeze(1), 
             hps.data.n_fft, 

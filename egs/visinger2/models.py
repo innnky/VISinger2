@@ -8,6 +8,8 @@ from torch.nn import functional as F
 from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 
+import utils.utils
+
 sys.path.append('../..')
 import modules.commons as commons
 import modules.modules as modules
@@ -877,13 +879,13 @@ class SynthesizerTrn(nn.Module):
     
     self.dropout = nn.Dropout(0.2)
     
-    self.duration_predictor = DurationPredictor(
-        hps.model.prior_hidden_channels, 
-        hps.model.prior_hidden_channels, 
-        3, 
-        0.5, 
-        n_speakers=hps.data.n_speakers, 
-        spk_channels=hps.model.spk_channels)
+    # self.duration_predictor = DurationPredictor(
+    #     hps.model.prior_hidden_channels,
+    #     hps.model.prior_hidden_channels,
+    #     3,
+    #     0.5,
+    #     n_speakers=hps.data.n_speakers,
+    #     spk_channels=hps.model.spk_channels)
     self.LR = LengthRegulator()
 
     self.dec = Generator(hps,
@@ -904,7 +906,7 @@ class SynthesizerTrn(nn.Module):
     self.f0_prenet = nn.Conv1d(1, hps.model.prior_hidden_channels + 2, 3, padding=1)
     self.energy_prenet = nn.Conv1d(1, hps.model.prior_hidden_channels + 2, 3, padding=1)
     self.mel_prenet = nn.Conv1d(hps.data.acoustic_dim, hps.model.prior_hidden_channels + 2, 3, padding=1)
-    
+    self.f0_emb = nn.Embedding(256, hps.model.prior_hidden_channels + 2)
     if hps.data.n_speakers > 1:
         self.emb_spk = nn.Embedding( hps.data.n_speakers, hps.model.spk_channels)
 
@@ -917,15 +919,15 @@ class SynthesizerTrn(nn.Module):
     # Encoder
     x, x_mask, dur_input, x_pitch = self.text_encoder(phone, phone_lengths, pitchid, dur, slur)
     
-    # dur
-    predict_dur = self.duration_predictor(dur_input, x_mask, spk_emb=g)
-    predict_dur = (torch.exp(predict_dur) - 1) * x_mask
-    predict_dur = predict_dur * self.hps.data.sample_rate / self.hps.data.hop_size
+    # # dur
+    # predict_dur = self.duration_predictor(dur_input, x_mask, spk_emb=g)
+    # predict_dur = (torch.exp(predict_dur) - 1) * x_mask
+    # predict_dur = torch.cat([gtdur,dur], dim=1)
 
     # LR
     decoder_input, mel_len = self.LR(x, gtdur, None)
-    decoder_input_pitch, mel_len = self.LR(x_pitch, gtdur, None)
- 
+    # decoder_input_pitch, mel_len = self.LR(x_pitch, gtdur, None)
+    decoder_input_pitch = self.f0_emb(utils.utils.f0_to_coarse(F0)).squeeze(1).transpose(1,2)
     LF0 = 2595. * torch.log10(1. + F0 / 700.)
     LF0 = LF0 / 500
    
@@ -980,9 +982,9 @@ class SynthesizerTrn(nn.Module):
     condition_slice = commons.slice_segments(decoder_condition, ids_slice * self.hps.data.hop_size, self.hps.train.segment_size)
     o = self.dec(x_slice, condition_slice.detach())
 
-    return o, ids_slice, predict_dur, predict_lf0, LF0 * predict_bn_mask, dsp_slice.sum(1), loss_kl, predict_mel, predict_bn_mask
+    return o, ids_slice, None, predict_lf0, LF0 * predict_bn_mask, dsp_slice.sum(1), loss_kl, predict_mel, predict_bn_mask
 
-  def infer(self,  phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None, length_scale=1.):
+  def infer(self,  phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None,F0=None, length_scale=1.):
     
     if self.hps.data.n_speakers > 0:
       g = self.emb_spk(spk_id).unsqueeze(-1) # [b, h, 1]
@@ -992,21 +994,21 @@ class SynthesizerTrn(nn.Module):
     # Encoder
     x, x_mask, dur_input, x_pitch = self.text_encoder(phone, phone_lengths, pitchid, dur, slur)
     
-    # dur
-    predict_dur = self.duration_predictor(dur_input, x_mask, spk_emb=g)
-    predict_dur = (torch.exp(predict_dur) - 1) * x_mask
-    predict_dur = predict_dur * self.hps.data.sample_rate / self.hps.data.hop_size
-
-    predict_dur = torch.max(predict_dur, torch.ones_like(predict_dur).to(x))
-    predict_dur = torch.ceil(predict_dur).long()
-    predict_dur = predict_dur[:, 0, :]
-
-    y_lengths = torch.clamp_min(torch.sum(predict_dur, [1]), 1).long()
+    # # dur
+    # predict_dur = self.duration_predictor(dur_input, x_mask, spk_emb=g)
+    # predict_dur = (torch.exp(predict_dur) - 1) * x_mask
+    # predict_dur = predict_dur * self.hps.data.sample_rate / self.hps.data.hop_size
+    #
+    # predict_dur = torch.max(predict_dur, torch.ones_like(predict_dur).to(x))
+    # predict_dur = torch.ceil(predict_dur).long()
+    # predict_dur = predict_dur[:, 0, :]
+    y_lengths = torch.clamp_min(torch.sum(gtdur.squeeze(1), [1]), 1).long()
 
     # LR
-    decoder_input, mel_len = self.LR(x, predict_dur, None)
-    decoder_input_pitch, mel_len = self.LR(x_pitch, predict_dur, None)
-    
+    decoder_input, mel_len = self.LR(x, gtdur, None)
+    # decoder_input_pitch, mel_len = self.LR(x_pitch, gtdur, None)
+    decoder_input_pitch = self.f0_emb(utils.utils.f0_to_coarse(F0)).squeeze(1).transpose(1,2)
+
     # aam
     predict_lf0, predict_bn_mask = self.f0_decoder(decoder_input + decoder_input_pitch, y_lengths, spk_emb=g)
     predict_mel, predict_bn_mask = self.mel_decoder(decoder_input + self.f0_prenet(predict_lf0), y_lengths, spk_emb=g)

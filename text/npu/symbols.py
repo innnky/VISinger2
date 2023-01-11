@@ -18,10 +18,13 @@ ttsing_phone_set = ['_'] + [
     "W*", "F*", "R*", "HH*", "sp", "sil", "or", "ar", "aor", "our", "angr",
     "eir", "engr", "air", "ianr", "iaor", "ir", "ingr", "ur", "iiir", "uar",
     "uangr", "uenr", "iir", "ongr", "uor", "ueir", "iar", "iangr", "inr",
-    "iour", "vr", "uanr", "ruai", "TR", "rest", 
+    "iour", "vr", "uanr", "ruai", "TR", "rest",
     # opencpop
-    'w', 'SP', 'AP', 'un', 'y', 'ui', 'iu'
+    'w', 'SP', 'AP', 'un', 'y', 'ui', 'iu',
+    # opencpop-strict
+    'i0', 'E', 'En'
 ]
+
 
 ttsing_pitch_set = ['_'] + [
     "C0", "C1", "C2", "C3", "C4", "C5", "C6", "C#/Db0", "C#/Db1", "C#/Db2",

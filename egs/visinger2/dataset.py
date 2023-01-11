@@ -125,9 +125,9 @@ class SingDataset(BaseDataset):
 
         for index in range(len(pho.split())):
             phos.append(npu.symbol_converter.ttsing_phone_to_int[pho.strip().split()[index]])
-            pitchs.append(npu.symbol_converter.ttsing_opencpop_pitch_to_int[pitchid.strip().split()[index]])
-            durs.append(float(dur.strip().split()[index]))
-            slurs.append(int(slur.strip().split()[index]))
+            pitchs.append(npu.symbol_converter.ttsing_opencpop_pitch_to_int["rest"])
+            durs.append(0)
+            slurs.append(0)
             gtdurs.append(float(gtdur.strip().split()[index]))
 
         phos = np.asarray(phos, dtype=np.int32)
