@@ -356,9 +356,12 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
 
 def evaluate(hps, generator, eval_loader, writer_eval):
     generator.eval()
+    image_dict = {}
+    audio_dict = {}
     with torch.no_grad():
         for batch_idx, data_dict in enumerate(eval_loader):
-
+            if batch_idx == 4:
+                break
             phone = data_dict["phone"]
             pitchid = data_dict["pitchid"]
             dur = data_dict["dur"]
@@ -397,48 +400,47 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             gtdur = gtdur[:1]
             spkid = spkid[:1]
 
-            break
-        y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur, gtdur=gtdur, F0=f0,
-                                                        spk_id=spkid)
-        spec = spectrogram_torch(
-            wav.squeeze(1),
-            hps.data.n_fft,
-            hps.data.sample_rate,
-            hps.data.hop_size,
-            hps.data.win_size
-        )
+            y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur, gtdur=gtdur, F0=f0,
+                                                            spk_id=spkid)
+            spec = spectrogram_torch(
+                wav.squeeze(1),
+                hps.data.n_fft,
+                hps.data.sample_rate,
+                hps.data.hop_size,
+                hps.data.win_size
+            )
 
-        y_mel = mel_spectrogram_torch(
-            wav.squeeze(1),
-            hps.data.n_fft,
-            hps.data.acoustic_dim,
-            hps.data.sample_rate,
-            hps.data.hop_size,
-            hps.data.win_size,
-            hps.data.fmin,
-            hps.data.fmax
-        )
-    y_hat_mel = mel_spectrogram_torch(
-        y_hat.squeeze(1),
-        hps.data.n_fft,
-        hps.data.acoustic_dim,
-        hps.data.sample_rate,
-        hps.data.hop_size,
-        hps.data.win_size,
-        hps.data.fmin,
-        hps.data.fmax
-    )
-    image_dict = {
-        "gen/mel": utils.plot_spectrogram_to_numpy(y_hat_mel[0].cpu().numpy()),
-    }
-    audio_dict = {
-        "gen/audio": y_hat[0, :, :],
-        "gen/harm": y_harm[0, :, :],
-        "gen/noise": y_noise[0, :, :]
-    }
-    if global_step == 0:
-        image_dict.update({"gt/mel": utils.plot_spectrogram_to_numpy(mel[0].cpu().numpy())})
-        audio_dict.update({"gt/audio": wav[0, :, :wav_lengths[0]]})
+            y_mel = mel_spectrogram_torch(
+                wav.squeeze(1),
+                hps.data.n_fft,
+                hps.data.acoustic_dim,
+                hps.data.sample_rate,
+                hps.data.hop_size,
+                hps.data.win_size,
+                hps.data.fmin,
+                hps.data.fmax
+            )
+            y_hat_mel = mel_spectrogram_torch(
+                y_hat.squeeze(1),
+                hps.data.n_fft,
+                hps.data.acoustic_dim,
+                hps.data.sample_rate,
+                hps.data.hop_size,
+                hps.data.win_size,
+                hps.data.fmin,
+                hps.data.fmax
+            )
+            image_dict.update({
+                f"gen/mel_{batch_idx}": utils.plot_spectrogram_to_numpy(y_hat_mel[0].cpu().numpy()),
+            })
+            audio_dict.update( {
+                f"gen/audio_{batch_idx}": y_hat[0, :, :],
+                f"gen/harm_{batch_idx}": y_harm[0, :, :],
+                "gen/noise": y_noise[0, :, :]
+            })
+            # if global_step == 0:
+            image_dict.update({f"gt/mel_{batch_idx}": utils.plot_spectrogram_to_numpy(mel[0].cpu().numpy())})
+            audio_dict.update({f"gt/audio_{batch_idx}": wav[0, :, :wav_lengths[0]]})
 
     utils.summarize(
         writer=writer_eval,
