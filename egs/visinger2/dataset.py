@@ -21,21 +21,7 @@ class BaseDataset(torch.utils.data.Dataset):
         random.seed(hparams.train.seed)
         random.shuffle(self.fileid_list)
         if(hparams.data.n_speakers > 0):
-            self.spk2id, self.utt2spk = self.get_spk_map(os.path.join(hparams.data.data_dir, "spk2id.json"), 
-                                                         os.path.join(hparams.data.data_dir, "utt2spk"))
-
-    def get_spk_map(self, spk2id_path, utt2spk_path):
-        utt2spk = {}
-        spk2id = {}
-        with open(spk2id_path, "r") as spk2id_file:
-            for line in spk2id_file.readlines():
-                spk, spkid = line.strip().split("\t")
-                spk2id[spk] = spkid
-        with open(utt2spk_path, encoding='utf-8') as f:
-            for line in f.readlines():
-                utt, spk = line.strip().split("\t")
-                utt2spk[utt] = spk
-        return spk2id, utt2spk
+            self.spk2id = hparams.data.spk2id
 
     def get_fileid_list(self, fileid_list_path):
         fileid_list = []
@@ -59,9 +45,7 @@ class SingDataset(BaseDataset):
                 fileid, txt, phones, pitchid, dur, gtdur, slur = line.split('|')
                 self.id2label[fileid] = [phones, pitchid, dur, slur, gtdur]
 
-        self.mel_dir = os.path.join(data_dir, "mels")
-        self.f0_dir = os.path.join(data_dir, "pitch")
-        self.wav_dir = os.path.join(data_dir, "wavs")
+        self.data_dir = data_dir
         # self.__filter__()
 
     def __filter__(self):
@@ -145,11 +129,13 @@ class SingDataset(BaseDataset):
         return phos, pitchs, durs, slurs, gtdurs
 
     def __getitem__(self, index):
+
         pho, pitchid, dur, slur, gtdur = self.id2label[self.fileid_list[index]]
         pho, pitchid, dur, slur, gtdur = self.parse_label(pho, pitchid, dur, slur, gtdur)
         sum_dur = gtdur.sum()
-        
-        mel = np.load(os.path.join(self.mel_dir, self.fileid_list[index] + '.npy'))
+        spk, fileid = self.fileid_list[index].split("/")
+        spkid = self.spk2id[spk]
+        mel = np.load(os.path.join(self.data_dir, spk, "mels", fileid + '.npy'))
         assert mel.shape[1] == 80
         if(mel.shape[0] != sum_dur):
             if(abs(mel.shape[0] - sum_dur) > 40):
@@ -161,7 +147,7 @@ class SingDataset(BaseDataset):
                 mel = np.concatenate([mel, mel.min() * np.ones([sum_dur - mel.shape[0], self.hps.data.acoustic_dim])], axis=0)
         mel = torch.FloatTensor(mel).transpose(0, 1)
 
-        f0 = np.load(os.path.join(self.f0_dir, self.fileid_list[index] + '.npy')).reshape([-1])
+        f0 = np.load(os.path.join(self.data_dir, spk, "pitch", fileid + '.npy')).reshape([-1])
         f0, _ = self.interpolate_f0(f0)
         f0 = f0.reshape([-1])
         if(f0.shape[0] != sum_dur):
@@ -173,11 +159,11 @@ class SingDataset(BaseDataset):
             else:
                 f0 = np.concatenate([f0, np.zeros([sum_dur - f0.shape[0]])], axis=0)
         f0 = torch.FloatTensor(f0).reshape([1, -1])
-        
-        wav = load_wav(os.path.join(self.wav_dir, self.fileid_list[index] + '.wav'), 
+
+        wav = load_wav(os.path.join(self.data_dir, spk, "wavs", fileid + '.wav'),
                        raw_sr=self.hparams.data.sample_rate,
-                       target_sr=self.hparams.data.sample_rate, 
-                       win_size=self.hparams.data.win_size, 
+                       target_sr=self.hparams.data.sample_rate,
+                       win_size=self.hparams.data.win_size,
                        hop_size=self.hparams.data.hop_size)
         wav = wav.reshape(-1)
         if(wav.shape[0] != sum_dur * self.hparams.data.hop_size):
@@ -190,7 +176,7 @@ class SingDataset(BaseDataset):
                 wav = np.concatenate([wav, np.zeros([sum_dur * self.hparams.data.hop_size - wav.shape[0]])], axis=0)
         wav = torch.FloatTensor(wav).reshape([1, -1])
 
-        return pho, pitchid, dur, slur, gtdur, mel, f0, wav
+        return pho, pitchid, dur, slur, gtdur, mel, f0, wav, spkid
 
 
 class SingCollate():
@@ -233,6 +219,7 @@ class SingCollate():
         mel_padded = torch.FloatTensor(len(batch), self.hparams.data.acoustic_dim, max_mel_len)
         f0_padded = torch.FloatTensor(len(batch), 1, max_f0_len)
         wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
+        spkids = torch.LongTensor(len(batch))
 
         phone_padded.zero_()
         pitchid_padded.zero_()
@@ -277,7 +264,9 @@ class SingCollate():
             wav = row[7]
             wav_padded[i, :, :wav.size(1)] = wav
             wav_lengths[i] = wav.size(1)
-            
+
+            spkids[i] = row[8]
+
         data_dict = {}
         data_dict["phone"] = phone_padded
         data_dict["phone_lengths"] = phone_lengths
@@ -292,6 +281,8 @@ class SingCollate():
         data_dict["mel_lengths"] = mel_lengths
         data_dict["f0_lengths"] = f0_lengths
         data_dict["wav_lengths"] = wav_lengths
+        data_dict["spkid"] = spkids
+
         return data_dict
 
 

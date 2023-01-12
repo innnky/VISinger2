@@ -182,7 +182,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
     mel = data_dict["mel"]
     f0 = data_dict["f0"]
     wav = data_dict["wav"]
-    
+    spkid = data_dict["spkid"]
+
     phone_lengths = data_dict["phone_lengths"]
     mel_lengths = data_dict["mel_lengths"]
     wav_lengths = data_dict["wav_lengths"]
@@ -198,10 +199,10 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
         mel, mel_lengths = mel.cuda(rank, non_blocking=True), mel_lengths.cuda(rank, non_blocking=True)
         wav, wav_lengths = wav.cuda(rank, non_blocking=True), wav_lengths.cuda(rank, non_blocking=True)
         f0, f0_lengths = f0.cuda(rank, non_blocking=True), f0_lengths.cuda(rank, non_blocking=True)
-        #spkid = spkid.cuda(rank, non_blocking=True)
+        spkid = spkid.cuda(rank, non_blocking=True)
     
     # forward
-    y_hat, ids_slice, LF0, y_ddsp, kl_div, predict_mel, mask = net_g(phone, phone_lengths, pitchid, dur, slur, gtdur, f0, mel, mel_lengths, spk_id=None)
+    y_hat, ids_slice, LF0, y_ddsp, kl_div, predict_mel, mask = net_g(phone, phone_lengths, pitchid, dur, slur, gtdur, f0, mel, mel_lengths, spk_id=spkid)
     y_ddsp = y_ddsp.unsqueeze(1)
 
     # Discriminator
@@ -356,7 +357,8 @@ def evaluate(hps, generator, eval_loader, writer_eval):
         mel = data_dict["mel"]
         f0 = data_dict["f0"]
         wav = data_dict["wav"]
-        
+        spkid = data_dict["spkid"]
+
         phone_lengths = data_dict["phone_lengths"]
         mel_lengths = data_dict["mel_lengths"]
         wav_lengths = data_dict["wav_lengths"]
@@ -372,7 +374,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             mel = mel.cuda(0)
             f0  = f0.cuda(0)
             gtdur = gtdur.cuda(0)
-
+            spkid = spkid.cuda(0)
         # remove else
         phone = phone[:1]
         phone_lengths = phone_lengths[:1]
@@ -383,9 +385,10 @@ def evaluate(hps, generator, eval_loader, writer_eval):
         mel = mel[:1]
         f0 = f0[:1]
         gtdur = gtdur[:1]
+        spkid = spkid[:1]
 
         break
-      y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur,gtdur=gtdur,F0=f0)
+      y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur,gtdur=gtdur,F0=f0, spk_id=spkid)
       spec = spectrogram_torch(
             wav.squeeze(1), 
             hps.data.n_fft, 

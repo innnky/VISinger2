@@ -9,6 +9,7 @@ from utils import audio
 import utils.utils as utils
 from tqdm import tqdm
 import pyworld as pw
+from random import shuffle
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -47,22 +48,40 @@ def process_utterance(hps, data_root, item):
     pitch_path = os.path.join(out_pitch_dir, item)
     np.save(pitch_path, pitch)
 
+data_dir = "data/opencpop"
+
 def process(args, hps):
-    print(os.path.join(hps.data.data_dir, "wavs"))
-    if(not os.path.exists(os.path.join(hps.data.data_dir, "file.list"))):
-        with open(os.path.join(hps.data.data_dir, "file.list") ,"w") as out_file:
-            files = os.listdir(os.path.join(hps.data.data_dir, "wavs"))
+    print(os.path.join(data_dir, "wavs"))
+    if(not os.path.exists(os.path.join(data_dir, "file.list"))):
+        with open(os.path.join(data_dir, "file.list") , "w") as out_file:
+            files = os.listdir(os.path.join(data_dir, "wavs"))
+            files = [i for i in files if i.endswith(".wav")]
             for f in files:
                 out_file.write(f.strip().split(".")[0] + '\n')
     metadata = [
         item.strip() for item in open(
-            os.path.join(hps.data.data_dir, "file.list")).readlines()
+            os.path.join(data_dir, "file.list")).readlines()
     ]
     executor = ProcessPoolExecutor(max_workers=args.num_workers)
     results = []
     for item in metadata:
-        results.append(executor.submit(partial(process_utterance, hps, hps.data.data_dir, item)))
+        results.append(executor.submit(partial(process_utterance, hps, data_dir, item)))
     return [result.result() for result in tqdm(results)]
+
+def split_dataset(hps):
+    metadata = [
+        item.strip() for item in open(
+            os.path.join(data_dir, "file.list")).readlines()
+    ]
+    shuffle(metadata)
+    train_set = metadata[:-10]
+    test_set =  metadata[-10:]
+    with open(os.path.join(data_dir, "train.list"), "w") as ts:
+        for item in train_set:
+            ts.write(item+"\n")
+    with open(os.path.join(data_dir, "test.list"), "w") as ts:
+        for item in test_set:
+            ts.write(item+"\n")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -74,8 +93,8 @@ def main():
     args = parser.parse_args()
     hps = utils.get_hparams_from_file(args.config)
 
-    process(args, hps)
-
+    # process(args, hps)
+    split_dataset(hps)
 
 if __name__ == "__main__":
     main()

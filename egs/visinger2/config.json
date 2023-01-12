@@ -19,7 +19,7 @@
     "save_dir": "logdir/visinger2"
   },
   "data": {
-    "data_dir":"../../data/opencpop",
+    "data_dir":"../../data",
     "dataset_type": "SingDataset",
     "collate_type": "SingCollate",
     "training_filelist":"train.list",
@@ -38,7 +38,8 @@
     "ref_level_db": 20,
     "min_db": -115,
     "max_abs_value": 4.0,
-    "n_speakers": 0
+    "n_speakers": 200,
+    "spk2id": {"opencpop": 0, "taffy": 1}
   },
   "model": {
     "hidden_channels": 192,
