@@ -91,8 +91,8 @@ def run(rank, n_gpus, hps):
       hps.train.learning_rate, 
       betas=hps.train.betas, 
       eps=hps.train.eps)
-  net_g = DDP(net_g, device_ids=[rank])
-  net_d = DDP(net_d, device_ids=[rank])
+  net_g = DDP(net_g, device_ids=[rank],find_unused_parameters=True)
+  net_d = DDP(net_d, device_ids=[rank],find_unused_parameters=True)
   try:
     _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.train.save_dir, "G_*.pth"), net_g, optim_g)
     _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.train.save_dir, "D_*.pth"), net_d, optim_d)
@@ -201,7 +201,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
         #spkid = spkid.cuda(rank, non_blocking=True)
     
     # forward
-    y_hat, ids_slice, predict_dur, predict_lf0, LF0, y_ddsp, kl_div, predict_mel, mask = net_g(phone, phone_lengths, pitchid, dur, slur, gtdur, f0, mel, mel_lengths, spk_id=None)
+    y_hat, ids_slice, LF0, y_ddsp, kl_div, predict_mel, mask = net_g(phone, phone_lengths, pitchid, dur, slur, gtdur, f0, mel, mel_lengths, spk_id=None)
     y_ddsp = y_ddsp.unsqueeze(1)
 
     # Discriminator
@@ -266,14 +266,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
     # loss
     y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
     
-    loss_f0 = F.mse_loss(predict_lf0 * mask, LF0 * mask) * 10
     loss_mel = F.l1_loss(y_mel, y_hat_mel) * 45
     loss_mel_dsp = F.l1_loss(y_mel, y_ddsp_mel) * 45
     loss_spec_dsp = F.l1_loss(y_logspec, y_ddsp_logspec) * 45
  
    
-    loss_dur = F.mse_loss(predict_dur[:, 0, :], gtdur.float().squeeze(1)) * 0.1
-    loss_note_dur = F.mse_loss(predict_dur[:, 1, :], dur.float().squeeze(1)) * 0.1
 
     loss_mel_am = F.mse_loss(mel * mask, predict_mel * mask) #* 10
 
@@ -282,7 +279,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
 
     loss_fm = loss_fm / 2
     loss_gen = loss_gen / 2
-    loss_gen_all = loss_gen + loss_fm + loss_mel + loss_f0 + loss_mel_dsp + loss_dur + kl_div + loss_mel_am + loss_spec_dsp
+    loss_gen_all = loss_gen + loss_fm + loss_mel + loss_mel_dsp + kl_div + loss_mel_am + loss_spec_dsp
 
     loss_gen_all = loss_gen_all / hps.train.accumulation_steps
     
@@ -296,15 +293,14 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
       if (global_step+1) % (hps.train.accumulation_steps * 10) == 0:
         logger.info(["step&time", global_step, time.asctime( time.localtime(time.time()) )])
         logger.info(["mel&mel_dsp&spec_dsp: " ,loss_mel, loss_mel_dsp, loss_spec_dsp])
-        logger.info(["f0: " ,loss_f0])
         logger.info(["adv&fm: " ,loss_gen, loss_fm])
         logger.info(["kl: " ,kl_div])
-        logger.info(["am&dur: " , loss_mel_am, loss_dur])
+        logger.info(["am&dur: " , loss_mel_am])
 
         
       if global_step % hps.train.log_interval == 0:
         lr = optim_g.param_groups[0]['lr']
-        losses = [loss_gen_all, loss_mel, loss_f0]
+        losses = [loss_gen_all, loss_mel]
         logger.info('Train Epoch: {} [{:.0f}%]'.format(
           epoch,
           100. * batch_idx / len(train_loader)))
@@ -316,11 +312,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
                        "loss/fm": loss_fm,
                        "loss/mel_ddsp": loss_mel_dsp,
                        "loss/spec_ddsp": loss_spec_dsp,
-                       "loss/dur": loss_dur,
-                       "loss/note_dur": loss_note_dur,
                        "loss/mel_am": loss_mel_am,
                        "loss/kl_div": kl_div,
-                       "loss/f0": loss_f0,
                        "learning_rate": lr}
         
         utils.summarize(
@@ -359,7 +352,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
         pitchid = data_dict["pitchid"]
         dur = data_dict["dur"]
         slur = data_dict["slur"]
-        # gtdur = data_dict["gtdur"]
+        gtdur = data_dict["gtdur"]
         mel = data_dict["mel"]
         f0 = data_dict["f0"]
         wav = data_dict["wav"]
@@ -378,7 +371,8 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             wav = wav.cuda(0)
             mel = mel.cuda(0)
             f0  = f0.cuda(0)
-        
+            gtdur = gtdur.cuda(0)
+
         # remove else
         phone = phone[:1]
         phone_lengths = phone_lengths[:1]
@@ -388,8 +382,10 @@ def evaluate(hps, generator, eval_loader, writer_eval):
         wav = wav[:1]
         mel = mel[:1]
         f0 = f0[:1]
+        gtdur = gtdur[:1]
+
         break
-      y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur)
+      y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur,gtdur=gtdur,F0=f0)
       spec = spectrogram_torch(
             wav.squeeze(1), 
             hps.data.n_fft, 

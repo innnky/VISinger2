@@ -103,16 +103,7 @@ class TextEncoder(nn.Module):
     self.emb_phone = nn.Embedding(len(ttsing_phone_set), 256)
     nn.init.normal_(self.emb_phone.weight, 0.0, 256**-0.5)
 
-    self.emb_pitch = nn.Embedding(len(ttsing_opencpop_pitch_set), 128)
-    nn.init.normal_(self.emb_pitch.weight, 0.0, 128**-0.5)
-
-    self.emb_slur = nn.Embedding(len(ttsing_slur_set), 64)
-    nn.init.normal_(self.emb_slur.weight, 0.0, 64**-0.5)
-    
-    self.emb_dur = torch.nn.Linear(1, 64)
-
-    self.pre_net = torch.nn.Linear(512, hidden_channels)
-    self.pre_dur_net = torch.nn.Linear(512, hidden_channels)
+    self.pre_net = torch.nn.Linear(256, hidden_channels)
 
     self.encoder = attentions.Encoder(
       hidden_channels,
@@ -122,19 +113,12 @@ class TextEncoder(nn.Module):
       kernel_size,
       p_dropout)
     self.proj= nn.Conv1d(hidden_channels, out_channels, 1)
-    self.proj_pitch = nn.Conv1d(128, out_channels, 1)
 
   def forward(self, phone, phone_lengths, pitchid, dur, slur):
 
     phone_end = self.emb_phone(phone) * math.sqrt(256)
-    pitch_end = self.emb_pitch(pitchid) * math.sqrt(128)
-    slur_end = self.emb_slur(slur) * math.sqrt(64)
-    dur_end = self.emb_dur(dur.unsqueeze(-1))
-    x = torch.cat([phone_end, pitch_end, slur_end, dur_end], dim=-1)
+    x = phone_end
 
-    dur_input = self.pre_dur_net(x)
-    dur_input = torch.transpose(dur_input, 1, -1)
-     
     x = self.pre_net(x)
     x = torch.transpose(x, 1, -1) # [b, h, t]
     
@@ -143,9 +127,7 @@ class TextEncoder(nn.Module):
     x = self.encoder(x * x_mask, x_mask)
     x = self.proj(x) * x_mask
 
-    pitch_info = self.proj_pitch(pitch_end.transpose(1, 2))
-
-    return x, x_mask, dur_input, pitch_info
+    return x, x_mask
 
 
 def pad_v2(input_ele, mel_max_length=None):
@@ -915,22 +897,15 @@ class SynthesizerTrn(nn.Module):
       g = None
     
     # Encoder
-    x, x_mask, dur_input, x_pitch = self.text_encoder(phone, phone_lengths, pitchid, dur, slur)
-    
-    # dur
-    predict_dur = self.duration_predictor(dur_input, x_mask, spk_emb=g)
-    predict_dur = (torch.exp(predict_dur) - 1) * x_mask
-    predict_dur = predict_dur * self.hps.data.sample_rate / self.hps.data.hop_size
+    x, x_mask= self.text_encoder(phone, phone_lengths, pitchid, dur, slur)
 
     # LR
     decoder_input, mel_len = self.LR(x, gtdur, None)
-    decoder_input_pitch, mel_len = self.LR(x_pitch, gtdur, None)
- 
+
     LF0 = 2595. * torch.log10(1. + F0 / 700.)
     LF0 = LF0 / 500
    
     # aam
-    predict_lf0, predict_bn_mask = self.f0_decoder(decoder_input + decoder_input_pitch, bn_lengths, spk_emb=g)
     predict_mel, predict_bn_mask = self.mel_decoder(decoder_input + self.f0_prenet(LF0), bn_lengths, spk_emb=g)
 
     predict_energy = predict_mel.detach().sum(1).unsqueeze(1) / self.hps.data.acoustic_dim
@@ -980,9 +955,9 @@ class SynthesizerTrn(nn.Module):
     condition_slice = commons.slice_segments(decoder_condition, ids_slice * self.hps.data.hop_size, self.hps.train.segment_size)
     o = self.dec(x_slice, condition_slice.detach())
 
-    return o, ids_slice, predict_dur, predict_lf0, LF0 * predict_bn_mask, dsp_slice.sum(1), loss_kl, predict_mel, predict_bn_mask
+    return o, ids_slice, LF0 * predict_bn_mask, dsp_slice.sum(1), loss_kl, predict_mel, predict_bn_mask
 
-  def infer(self,  phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None, length_scale=1.):
+  def infer(self,  phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None, length_scale=1.,F0=None):
     
     if self.hps.data.n_speakers > 0:
       g = self.emb_spk(spk_id).unsqueeze(-1) # [b, h, 1]
@@ -990,32 +965,22 @@ class SynthesizerTrn(nn.Module):
       g = None
     
     # Encoder
-    x, x_mask, dur_input, x_pitch = self.text_encoder(phone, phone_lengths, pitchid, dur, slur)
+    x, x_mask= self.text_encoder(phone, phone_lengths, pitchid, dur, slur)
     
     # dur
-    predict_dur = self.duration_predictor(dur_input, x_mask, spk_emb=g)
-    predict_dur = (torch.exp(predict_dur) - 1) * x_mask
-    predict_dur = predict_dur * self.hps.data.sample_rate / self.hps.data.hop_size
-
-    predict_dur = torch.max(predict_dur, torch.ones_like(predict_dur).to(x))
-    predict_dur = torch.ceil(predict_dur).long()
-    predict_dur = predict_dur[:, 0, :]
-
-    y_lengths = torch.clamp_min(torch.sum(predict_dur, [1]), 1).long()
-
+    y_lengths = torch.clamp_min(torch.sum(gtdur.squeeze(1), [1]), 1).long()
+    LF0 = 2595. * torch.log10(1. + F0 / 700.)
+    LF0 = LF0 / 500
     # LR
-    decoder_input, mel_len = self.LR(x, predict_dur, None)
-    decoder_input_pitch, mel_len = self.LR(x_pitch, predict_dur, None)
-    
-    # aam
-    predict_lf0, predict_bn_mask = self.f0_decoder(decoder_input + decoder_input_pitch, y_lengths, spk_emb=g)
-    predict_mel, predict_bn_mask = self.mel_decoder(decoder_input + self.f0_prenet(predict_lf0), y_lengths, spk_emb=g)
+    decoder_input, mel_len = self.LR(x, gtdur, None)
 
-    predict_lf0 = torch.max(predict_lf0, torch.zeros_like(predict_lf0).to(predict_lf0))
+    # aam
+    predict_mel, predict_bn_mask = self.mel_decoder(decoder_input + self.f0_prenet(LF0), y_lengths, spk_emb=g)
+
     predict_energy = predict_mel.sum(1).unsqueeze(1) / self.hps.data.acoustic_dim
     
     decoder_input = decoder_input + \
-                        self.f0_prenet(predict_lf0) + \
+                        self.f0_prenet(LF0) + \
                         self.energy_prenet(predict_energy) + \
                         self.mel_prenet(predict_mel)
     decoder_output, y_mask = self.decoder(decoder_input, y_lengths, spk_emb=g)
@@ -1028,11 +993,6 @@ class SynthesizerTrn(nn.Module):
     
     noise_x = self.dec_noise(prior_z, y_mask)
 
-    F0_std = 500
-    F0 = predict_lf0 * F0_std
-    F0 = F0 / 2595
-    F0 = torch.pow(10, F0)
-    F0 = (F0 - 1) * 700.
 
     harm_x = self.dec_harm(F0, prior_z, y_mask)
     

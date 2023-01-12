@@ -20,7 +20,12 @@ ttsing_phone_set = ['_'] + [
     "uangr", "uenr", "iir", "ongr", "uor", "ueir", "iar", "iangr", "inr",
     "iour", "vr", "uanr", "ruai", "TR", "rest", 
     # opencpop
-    'w', 'SP', 'AP', 'un', 'y', 'ui', 'iu'
+    'w', 'SP', 'AP', 'un', 'y', 'ui', 'iu',
+    "iour", "vr", "uanr", "ruai", "TR", "rest",
+    # opencpop
+    'w', 'SP', 'AP', 'un', 'y', 'ui', 'iu',
+    # opencpop-strict
+    'i0', 'E', 'En'
 ]
 
 ttsing_pitch_set = ['_'] + [
