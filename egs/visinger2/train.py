@@ -344,9 +344,9 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
 
                 evaluate(hps, net_g, eval_loader, writer_eval)
                 utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch,
-                                      os.path.join(hps.train.save_dir, "G_{}.pth".format(global_step)))
+                                      os.path.join(hps.train.save_dir, "G_{}.pth".format(global_step)), hps.train.eval_interval)
                 utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch,
-                                      os.path.join(hps.train.save_dir, "D_{}.pth".format(global_step)))
+                                      os.path.join(hps.train.save_dir, "D_{}.pth".format(global_step)), hps.train.eval_interval)
                 net_g.train()
         global_step += 1
 
