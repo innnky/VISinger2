@@ -1,3 +1,4 @@
+import glob
 import os
 import sys
 import argparse
@@ -48,9 +49,8 @@ def process_utterance(hps, data_root, item):
     pitch_path = os.path.join(out_pitch_dir, item)
     np.save(pitch_path, pitch)
 
-data_dir = "data/opencpop"
 
-def process(args, hps):
+def process(args, hps, data_dir):
     print(os.path.join(data_dir, "wavs"))
     if(not os.path.exists(os.path.join(data_dir, "file.list"))):
         with open(os.path.join(data_dir, "file.list") , "w") as out_file:
@@ -68,7 +68,7 @@ def process(args, hps):
         results.append(executor.submit(partial(process_utterance, hps, data_dir, item)))
     return [result.result() for result in tqdm(results)]
 
-def split_dataset(hps):
+def split_dataset(data_dir):
     metadata = [
         item.strip() for item in open(
             os.path.join(data_dir, "file.list")).readlines()
@@ -92,9 +92,12 @@ def main():
 
     args = parser.parse_args()
     hps = utils.get_hparams_from_file(args.config)
-
-    # process(args, hps)
-    split_dataset(hps)
+    spklist = [spk for spk in os.listdir("data") if os.path.isdir(f"data/{spk}") and not os.path.exists(f"data/{spk}/test.list")]
+    for spk in tqdm(spklist):
+        print(f"preprocessing {spk}")
+        data_dir = f"data/{spk}"
+        process(args, hps, data_dir)
+        split_dataset(data_dir)
 
 if __name__ == "__main__":
     main()

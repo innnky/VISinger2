@@ -1,4 +1,5 @@
 import glob
+import json
 
 data_root = "data"
 
@@ -23,4 +24,4 @@ for transcription in transcriptions:
 ms_transcriptions.close()
 ms_train_set.close()
 ms_test_set.close()
-print(spk2id)
+print(json.dumps(spk2id))
