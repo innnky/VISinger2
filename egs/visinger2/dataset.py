@@ -119,8 +119,12 @@ class SingDataset(BaseDataset):
         durs = np.asarray(durs, dtype=np.float32)
         slurs = np.asarray(slurs, dtype=np.int32)
         gtdurs = np.asarray(gtdurs, dtype=np.float32)
-        gtdurs = np.ceil(gtdurs / (self.hps.data.hop_size / self.hps.data.sample_rate))
-        
+
+        acc_duration = np.cumsum(gtdurs)
+        acc_duration = np.pad(acc_duration, (1, 0), 'constant', constant_values=(0,))
+        acc_duration_frames = np.ceil(acc_duration / (self.hps.data.hop_size / self.hps.data.sample_rate))
+        gtdurs = acc_duration_frames[1:] - acc_duration_frames[:-1]
+
         phos = torch.LongTensor(phos)
         pitchs = torch.LongTensor(pitchs)
         durs = torch.FloatTensor(durs)
@@ -136,9 +140,12 @@ class SingDataset(BaseDataset):
         spk, fileid = self.fileid_list[index].split("/")
         spkid = self.spk2id[spk]
         mel = np.load(os.path.join(self.data_dir, spk, "mels", fileid + '.npy'))
+        if mel.shape[0] <150:
+            print("drop short audio:", self.fileid_list[index])
+            return None
         assert mel.shape[1] == 80
         if(mel.shape[0] != sum_dur):
-            if(abs(mel.shape[0] - sum_dur) > 40):
+            if(abs(mel.shape[0] - sum_dur) > 3):
                 print("dataset error mel: ",mel.shape, sum_dur)
                 return None
             if(mel.shape[0] > sum_dur):
@@ -151,7 +158,7 @@ class SingDataset(BaseDataset):
         f0, _ = self.interpolate_f0(f0)
         f0 = f0.reshape([-1])
         if(f0.shape[0] != sum_dur):
-            if(abs(f0.shape[0] - sum_dur) > 40):
+            if(abs(f0.shape[0] - sum_dur) > 3):
                 print("dataset error f0 : ",f0.shape, sum_dur)
                 return None
             if(f0.shape[0] > sum_dur):
@@ -167,7 +174,7 @@ class SingDataset(BaseDataset):
                        hop_size=self.hparams.data.hop_size)
         wav = wav.reshape(-1)
         if(wav.shape[0] != sum_dur * self.hparams.data.hop_size):
-            if(abs(wav.shape[0] - sum_dur * self.hparams.data.hop_size) > 40 * self.hparams.data.hop_size):
+            if(abs(wav.shape[0] - sum_dur * self.hparams.data.hop_size) > 3 * self.hparams.data.hop_size):
                 print("dataset error wav : ", wav.shape, sum_dur)
                 return None
             if(wav.shape[0] > sum_dur * self.hparams.data.hop_size):
