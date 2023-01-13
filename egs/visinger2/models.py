@@ -888,7 +888,7 @@ class SynthesizerTrn(nn.Module):
                              hps.model.upsample_rates,
                              hps.model.upsample_initial_channel,
                              hps.model.upsample_kernel_sizes,
-                             n_speakers=0,
+                             n_speakers=hps.data.n_speakers,
                              spk_channels=hps.model.spk_channels)
 
         self.dec_harm = Generator_Harm(hps)
@@ -967,7 +967,7 @@ class SynthesizerTrn(nn.Module):
         dsp_slice = commons.slice_segments(dsp_o, ids_slice * self.hps.data.hop_size, self.hps.train.segment_size)
         condition_slice = commons.slice_segments(decoder_condition, ids_slice * self.hps.data.hop_size,
                                                  self.hps.train.segment_size)
-        o = self.dec(x_slice, condition_slice.detach())
+        o = self.dec(x_slice, condition_slice.detach(), g=g)
 
         return o, ids_slice, LF0 * predict_bn_mask, dsp_slice.sum(1), loss_kl, predict_mel, predict_bn_mask
 
@@ -1016,6 +1016,6 @@ class SynthesizerTrn(nn.Module):
         decoder_condition = torch.cat([harm_x, noise_x, sin], axis=1)
 
         # dsp based HiFiGAN vocoder
-        o = self.dec(prior_z, decoder_condition)
+        o = self.dec(prior_z, decoder_condition, g=g)
 
         return o, harm_x.sum(1).unsqueeze(1), noise_x
