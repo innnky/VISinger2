@@ -74,8 +74,8 @@ def split_dataset(data_dir):
             os.path.join(data_dir, "file.list")).readlines()
     ]
     shuffle(metadata)
-    train_set = metadata[:-10]
-    test_set =  metadata[-10:]
+    train_set = metadata[:-2]
+    test_set =  metadata[-2:]
     with open(os.path.join(data_dir, "train.list"), "w") as ts:
         for item in train_set:
             ts.write(item+"\n")

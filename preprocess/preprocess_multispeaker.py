@@ -24,4 +24,5 @@ for transcription in transcriptions:
 ms_transcriptions.close()
 ms_train_set.close()
 ms_test_set.close()
+print("请手动将说话人与id的映射粘贴至config文件中")
 print(json.dumps(spk2id))
