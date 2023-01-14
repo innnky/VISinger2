@@ -9,7 +9,7 @@ from scipy.interpolate import interp1d
 
 from utils import utils
 from egs.visinger2.models import SynthesizerTrn
-from infer import preprocess
+from infer import preprocess, cross_fade
 
 inp = {
     "text": "SP 啊 啊 SP 啊 啊 啊 啊 啊 啊 啊 啊 SP 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 SP 啊 啊 SP 啊 啊 啊 啊 啊 啊 啊 啊 SP 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 SP 啊 啊 SP 啊 啊 啊 啊 啊 啊 啊 啊 SP 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 啊 SP",
@@ -31,13 +31,16 @@ name = ds_path.split("/")[-1].split(".")[0]
 hps = utils.get_hparams_from_file("egs/visinger2/config.json")
 net_g = SynthesizerTrn(hps)
 _ = net_g.eval()
-_ = utils.load_checkpoint("/Volumes/Extend/下载/G_74000.pth", net_g, None)
-
+step = "61000_optmized"
+_ = utils.load_checkpoint(f"/Volumes/Extend/下载/G_{step}.pth", net_g, None)
+sample_rate = 44100
 trans = 0
 
 speaker = "taffy"
 
-audios = []
+
+result = np.zeros(0)
+current_length = 0
 for inp in tqdm.tqdm(ds):
     spkid = hps.data.spk2id[speaker]
     f0_seq,pitch, phseq, durations = preprocess(inp)
@@ -53,10 +56,20 @@ for inp in tqdm.tqdm(ds):
     manual_f0 = torch.FloatTensor(f0).unsqueeze(0)
     manual_dur = torch.LongTensor(durations).unsqueeze(0)
     t1 = time.time()
-    result = net_g.infer(x_tst, x_tst_lengths, None,  None,
+    infer_res = net_g.infer(x_tst, x_tst_lengths, None,  None,
                          None, gtdur=manual_dur,spk_id=spk,
                          F0=manual_f0 * 2 ** (trans / 12))
-    audio = result[0][0, 0].data.float().numpy()
-    audios.append(audio)
+    seg_audio = infer_res[0][0, 0].data.float().numpy()
+    try:
+        offset_ = inp['offset']
+    except:
+        offset_ = 0
+    silent_length = round(offset_ * sample_rate) - current_length
+    if silent_length >= 0:
+        result = np.append(result, np.zeros(silent_length))
+        result = np.append(result, seg_audio)
+    else:
+        result = cross_fade(result, seg_audio, current_length + silent_length)
+    current_length = current_length + silent_length + seg_audio.shape[0]
     print(time.time() - t1)
-soundfile.write(f"samples/{speaker}_{name}.wav", np.concatenate(audios), 44100)
+soundfile.write(f"samples/{speaker}_{name}_{step}step.wav", result, 44100)
