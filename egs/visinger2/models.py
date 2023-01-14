@@ -347,19 +347,19 @@ class PosteriorEncoder(nn.Module):
         self.n_layers = n_layers
 
         self.pre = nn.Conv1d(in_channels, hidden_channels, 1)
-        # self.enc = modules.WN(hidden_channels, kernel_size, dilation_rate, n_layers, n_speakers=0, spk_channels=hps.model.spk_channels)
-        self.enc = ConvReluNorm(hidden_channels,
-                                hidden_channels,
-                                hidden_channels,
-                                kernel_size,
-                                n_layers,
-                                0.1)
+        self.enc = modules.WN(hidden_channels, kernel_size, dilation_rate, n_layers, n_speakers=hps.data.n_speakers, spk_channels=hps.model.spk_channels)
+        # self.enc = ConvReluNorm(hidden_channels,
+        #                         hidden_channels,
+        #                         hidden_channels,
+        #                         kernel_size,
+        #                         n_layers,
+        #                         0.1)
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths, g=None):
         x_mask = torch.unsqueeze(commons.sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
         x = self.pre(x) * x_mask
-        x = self.enc(x) * x_mask
+        x = self.enc(x, x_mask, g=g)
         stats = self.proj(x) * x_mask
         return stats, x_mask
 
@@ -901,6 +901,7 @@ class SynthesizerTrn(nn.Module):
 
         if hps.data.n_speakers > 1:
             self.emb_spk = nn.Embedding(hps.data.n_speakers, hps.model.spk_channels)
+        self.flow = modules.ResidualCouplingBlock(hps.model.prior_hidden_channels, hps.model.hidden_channels, 5, 1, 4, gin_channels=hps.model.spk_channels)
 
     def forward(self, phone, phone_lengths, pitchid, dur, slur, gtdur, F0, mel, bn_lengths, spk_id=None):
         if self.hps.data.n_speakers > 0:
@@ -935,11 +936,12 @@ class SynthesizerTrn(nn.Module):
         prior_z = prior_norm.rsample()
 
         # posterior
-        posterior, y_mask = self.posterior_encoder(mel, bn_lengths)
+        posterior, y_mask = self.posterior_encoder(mel, bn_lengths,g=g)
         posterior_mean = posterior[:, :self.hps.model.hidden_channels, :]
         posterior_logstd = posterior[:, self.hps.model.hidden_channels:, :]
         posterior_norm = D.Normal(posterior_mean, torch.exp(posterior_logstd))
         posterior_z = posterior_norm.rsample()
+        posterior_norm = self.flow(posterior_norm, y_mask, g=g)
 
         # kl loss
         loss_kl = D.kl_divergence(posterior_norm, prior_norm).mean()
@@ -1003,6 +1005,7 @@ class SynthesizerTrn(nn.Module):
         prior_mean = prior_info[:, :self.hps.model.hidden_channels, :]
         prior_std = prior_info[:, self.hps.model.hidden_channels:, :]
         prior_norm = D.Normal(prior_mean, torch.exp(prior_std))
+        prior_norm = self.flow(prior_norm, y_mask, g=g, reverse=True)
         prior_z = prior_norm.rsample()
 
         noise_x = self.dec_noise(prior_z, y_mask)

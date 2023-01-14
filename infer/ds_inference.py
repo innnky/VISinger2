@@ -24,19 +24,19 @@ inp = {
     "offset": 16.582
   }
 
-ds_path = "infer/share.ds"
+ds_path = "infer/我多想说再见啊_with_ph_dur的副本.ds"
 ds = json.load(open(ds_path))
 name = ds_path.split("/")[-1].split(".")[0]
 # print(pitch)
-hps = utils.get_hparams_from_file("egs/visinger2/config.json")
+hps = utils.get_hparams_from_file("egs/visinger2/genshin_config.json")
 net_g = SynthesizerTrn(hps)
 _ = net_g.eval()
-step = "61000_optmized"
+step = "gens62000"
 _ = utils.load_checkpoint(f"/Volumes/Extend/下载/G_{step}.pth", net_g, None)
 sample_rate = 44100
-trans = 0
+trans = 1
 
-speaker = "taffy"
+speaker = "芭芭拉"
 
 
 result = np.zeros(0)
