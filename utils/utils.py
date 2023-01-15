@@ -31,6 +31,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None):
     for k, v in state_dict.items():
         try:
             new_state_dict[k] = saved_state_dict[k]
+            assert saved_state_dict[k].shape == v.shape, (saved_state_dict[k].shape, v.shape)
         except:
             print("error, %s is not in the checkpoint" % k)
             logger.info("%s is not in the checkpoint" % k)
