@@ -930,23 +930,20 @@ class SynthesizerTrn(nn.Module):
         decoder_output, predict_bn_mask = self.decoder(decoder_input, bn_lengths, spk_emb=g)
 
         prior_info = decoder_output
-        prior_mean = prior_info[:, :self.hps.model.hidden_channels, :]
-        prior_logstd = prior_info[:, self.hps.model.hidden_channels:, :]
-        prior_norm = D.Normal(prior_mean, torch.exp(prior_logstd))
-        prior_z = prior_norm.rsample()
+        m_p = prior_info[:, :self.hps.model.hidden_channels, :]
+        logs_p = prior_info[:, self.hps.model.hidden_channels:, :]
 
         # posterior
         posterior, y_mask = self.posterior_encoder(mel, bn_lengths,g=g)
-        posterior_mean = posterior[:, :self.hps.model.hidden_channels, :]
-        posterior_logstd = posterior[:, self.hps.model.hidden_channels:, :]
-        posterior_norm = D.Normal(posterior_mean, torch.exp(posterior_logstd))
-        posterior_z = posterior_norm.rsample()
-        z_p = self.flow(posterior_z, y_mask, g=g)
-        posterior_norm = D.Normal(z_p, torch.exp(posterior_logstd))
-        # kl loss
-        loss_kl = D.kl_divergence(posterior_norm, prior_norm).mean()
+        m_q = posterior[:, :self.hps.model.hidden_channels, :]
+        logs_q = posterior[:, self.hps.model.hidden_channels:, :]
+        z = (m_q + torch.randn_like(m_q) * torch.exp(logs_q)) * y_mask
+        z_p = self.flow(z, y_mask, g=g)
 
-        p_z = posterior_z
+        # kl loss
+        loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, y_mask)
+
+        p_z = z
         p_z = self.dropout(p_z)
 
         pitch = upsample(F0.transpose(1, 2), self.hps.data.hop_size)
@@ -973,7 +970,7 @@ class SynthesizerTrn(nn.Module):
 
         return o, ids_slice, LF0 * predict_bn_mask, dsp_slice.sum(1), loss_kl, predict_mel, predict_bn_mask
 
-    def infer(self, phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None, length_scale=1., F0=None):
+    def infer(self, phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None, length_scale=1., F0=None, noise_scale=1):
 
         if self.hps.data.n_speakers > 0:
             g = self.emb_spk(spk_id).unsqueeze(-1)  # [b, h, 1]
@@ -1002,11 +999,13 @@ class SynthesizerTrn(nn.Module):
         decoder_output, y_mask = self.decoder(decoder_input, y_lengths, spk_emb=g)
 
         prior_info = decoder_output
-        prior_mean = prior_info[:, :self.hps.model.hidden_channels, :]
-        prior_std = prior_info[:, self.hps.model.hidden_channels:, :]
-        prior_norm = D.Normal(prior_mean, torch.exp(prior_std))
-        prior_z = prior_norm.rsample()
-        prior_z = self.flow(prior_z, y_mask, g=g, reverse=True)
+
+        m_p = prior_info[:, :self.hps.model.hidden_channels, :]
+        logs_p = prior_info[:, self.hps.model.hidden_channels:, :]
+        z_p = m_p + torch.randn_like(m_p) * torch.exp(logs_p) * noise_scale
+        z = self.flow(z_p, y_mask, g=g, reverse=True)
+
+        prior_z = z
 
         noise_x = self.dec_noise(prior_z, y_mask)
 
