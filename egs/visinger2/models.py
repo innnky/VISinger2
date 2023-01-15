@@ -901,7 +901,7 @@ class SynthesizerTrn(nn.Module):
 
         if hps.data.n_speakers > 1:
             self.emb_spk = nn.Embedding(hps.data.n_speakers, hps.model.spk_channels)
-        self.flow = modules.ResidualCouplingBlock(hps.model.prior_hidden_channels, hps.model.hidden_channels, 5, 1, 4, gin_channels=hps.model.spk_channels)
+        self.flow = modules.ResidualCouplingBlock(hps.model.prior_hidden_channels, hps.model.hidden_channels, 5, 1, 4,n_speakers=hps.data.n_speakers, gin_channels=hps.model.spk_channels)
 
     def forward(self, phone, phone_lengths, pitchid, dur, slur, gtdur, F0, mel, bn_lengths, spk_id=None):
         if self.hps.data.n_speakers > 0:
@@ -941,8 +941,8 @@ class SynthesizerTrn(nn.Module):
         posterior_logstd = posterior[:, self.hps.model.hidden_channels:, :]
         posterior_norm = D.Normal(posterior_mean, torch.exp(posterior_logstd))
         posterior_z = posterior_norm.rsample()
-        posterior_norm = self.flow(posterior_norm, y_mask, g=g)
-
+        z_p = self.flow(posterior_z, y_mask, g=g)
+        posterior_norm = D.Normal(z_p, torch.exp(posterior_logstd))
         # kl loss
         loss_kl = D.kl_divergence(posterior_norm, prior_norm).mean()
 
@@ -1005,8 +1005,8 @@ class SynthesizerTrn(nn.Module):
         prior_mean = prior_info[:, :self.hps.model.hidden_channels, :]
         prior_std = prior_info[:, self.hps.model.hidden_channels:, :]
         prior_norm = D.Normal(prior_mean, torch.exp(prior_std))
-        prior_norm = self.flow(prior_norm, y_mask, g=g, reverse=True)
         prior_z = prior_norm.rsample()
+        prior_z = self.flow(prior_z, y_mask, g=g, reverse=True)
 
         noise_x = self.dec_noise(prior_z, y_mask)
 
