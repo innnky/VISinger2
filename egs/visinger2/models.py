@@ -970,7 +970,7 @@ class SynthesizerTrn(nn.Module):
 
         return o, ids_slice, LF0 * predict_bn_mask, dsp_slice.sum(1), loss_kl, predict_mel, predict_bn_mask
 
-    def infer(self, phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None, length_scale=1., F0=None, noise_scale=1):
+    def infer(self, phone, phone_lengths, pitchid, dur, slur, gtdur=None, spk_id=None, length_scale=1., F0=None, noise_scale=0.8):
 
         if self.hps.data.n_speakers > 0:
             g = self.emb_spk(spk_id).unsqueeze(-1)  # [b, h, 1]
