@@ -1,6 +1,9 @@
+import time
+
 import librosa
 import numpy as np
-
+import torch
+import tqdm
 from text import npu
 
 def resize2d_f0(x, target_len):
@@ -73,6 +76,43 @@ def cross_fade(a: np.ndarray, b: np.ndarray, idx: int):
     np.copyto(dst=result[a.shape[0]:], src=b[fade_len:])
     return result
 
+
+def infer_ds(model, hps, ds, speaker, trans):
+
+    sample_rate = 44100
+
+    result = np.zeros(0)
+    current_length = 0
+    for inp in tqdm.tqdm(ds):
+        spkid = hps.data.spk2id[speaker]
+        f0_seq, pitch, phseq, durations = preprocess(inp)
+
+        f0 = torch.FloatTensor(f0_seq).unsqueeze(0)
+
+        text_norm = torch.LongTensor(phseq)
+        x_tst = text_norm.unsqueeze(0)
+        x_tst_lengths = torch.LongTensor([text_norm.size(0)])
+        spk = torch.LongTensor([spkid])
+        manual_f0 = torch.FloatTensor(f0).unsqueeze(0)
+        manual_dur = torch.LongTensor(durations).unsqueeze(0)
+        t1 = time.time()
+        infer_res = model.infer(x_tst, x_tst_lengths, None, None,
+                                None, gtdur=manual_dur, spk_id=spk,
+                                F0=manual_f0 * 2 ** (trans / 12))
+        seg_audio = infer_res[0][0, 0].data.float().numpy()
+        try:
+            offset_ = inp['offset']
+        except:
+            offset_ = 0
+        silent_length = round(offset_ * sample_rate) - current_length
+        if silent_length >= 0:
+            result = np.append(result, np.zeros(silent_length))
+            result = np.append(result, seg_audio)
+        else:
+            result = cross_fade(result, seg_audio, current_length + silent_length)
+        current_length = current_length + silent_length + seg_audio.shape[0]
+        print("infer time:", time.time() - t1)
+    return result
 
 
 
