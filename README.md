@@ -5,6 +5,7 @@
 目前训练、推理代码还不是很易用，之后会逐步进行完善
 
 ## 数据集准备
+先按照DiffSinger nomidi格式制作数据集，放入data目录下
 ```shell
 data
 ├───speaker0
@@ -21,7 +22,7 @@ data
 # 调整文件夹结构
 python preprocess/prepare_multispeaker.py
 # 生成mel与pitch
-python preprocess/prepare.py
+python preprocess/preprocess.py
 # 生成多说话人配置
 python preprocess/preprocess_multispeaker.py
 # 之后将上一部生成的spk2id粘贴到配置文件egs/visinger2/config.json中
