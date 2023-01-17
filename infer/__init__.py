@@ -96,9 +96,10 @@ def infer_ds(model, hps, ds, speaker, trans):
         manual_f0 = torch.FloatTensor(f0).unsqueeze(0)
         manual_dur = torch.LongTensor(durations).unsqueeze(0)
         t1 = time.time()
-        infer_res = model.infer(x_tst, x_tst_lengths, None, None,
-                                None, gtdur=manual_dur, spk_id=spk,
-                                F0=manual_f0 * 2 ** (trans / 12))
+        with torch.no_grad():
+            infer_res = model.infer(x_tst, x_tst_lengths, None, None,
+                                    None, gtdur=manual_dur, spk_id=spk,
+                                    F0=manual_f0 * 2 ** (trans / 12))
         seg_audio = infer_res[0][0, 0].data.float().numpy()
         try:
             offset_ = inp['offset']
