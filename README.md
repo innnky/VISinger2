@@ -7,7 +7,8 @@
 ## 数据集准备
 先按照DiffSinger nomidi格式制作数据集，放入data目录下
 + 高质量数据集制作可以参照[DiffSinger数据集教程](https://www.yuque.com/sunsa-i3ayc/sivu7h/dx9xof9k1dg305aq) 
-+ 低质量数据追求省事可以使用[自动化数据集制作脚本](https://github.com/innnky/audio-preprocessing-scripts) （目前除了mfa部分基本可以做到一键完成）
+
+[//]: # (+ 低质量数据追求省事可以使用[自动化数据集制作脚本]&#40;https://github.com/innnky/audio-preprocessing-scripts&#41; （目前除了mfa部分基本可以做到一键完成）)
 ```shell
 data
 ├───speaker0
