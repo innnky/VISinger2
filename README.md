@@ -32,5 +32,6 @@ cd egs/visinger2
 bash bash/train.sh 0
 ```
 ## 推理
-修改 infer/ds_inference.py 中ds工程、说话人、模型路径
-python infer/ds_inference.py
+修改 ds_inference.py 中ds工程、说话人、模型路径
+
+python ds_inference.py
