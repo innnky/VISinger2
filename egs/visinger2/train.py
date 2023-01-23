@@ -435,7 +435,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             })
             audio_dict.update( {
                 f"gen/audio_{batch_idx}": y_hat[0, :, :],
-                f"gen/harm_{batch_idx}": y_harm[0, :, :],
+                f"gen/harm": y_harm[0, :, :],
                 "gen/noise": y_noise[0, :, :]
             })
             # if global_step == 0:
