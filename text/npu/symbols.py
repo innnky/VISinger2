@@ -18,14 +18,17 @@ ttsing_phone_set = ['_'] + [
     "W*", "F*", "R*", "HH*", "sp", "sil", "or", "ar", "aor", "our", "angr",
     "eir", "engr", "air", "ianr", "iaor", "ir", "ingr", "ur", "iiir", "uar",
     "uangr", "uenr", "iir", "ongr", "uor", "ueir", "iar", "iangr", "inr",
-    "iour", "vr", "uanr", "ruai", "TR", "rest", 
-    # opencpop
-    'w', 'SP', 'AP', 'un', 'y', 'ui', 'iu',
     "iour", "vr", "uanr", "ruai", "TR", "rest",
     # opencpop
     'w', 'SP', 'AP', 'un', 'y', 'ui', 'iu',
     # opencpop-strict
-    'i0', 'E', 'En'
+    'i0', 'E', 'En',
+    # japanese-common
+    'ts.', 'f.', 'sh.', 'ry.', 'py.', 'h.', 'p.', 'N.', 'a.', 'm.', 'w.', 'ky.',
+    'n.', 'd.', 'j.', 'cl.', 'ny.', 'z.', 'o.', 'y.', 't.', 'u.', 'r.', 'pau',
+    'ch.', 'e.', 'b.', 'k.', 'g.', 's.', 'i.',
+    # japanese-unique
+    'gy.', 'my.', 'hy.', 'br', 'by.', 'v.', 'ty.', 'xx.', 'U.', 'I.', 'dy.'
 ]
 
 ttsing_pitch_set = ['_'] + [
@@ -41,18 +44,18 @@ ttsing_pitch_set = ['_'] + [
 ]
 
 ttsing_opencpop_pitch_set = ['_'] + [
-    "C0", "C1", "C2", "C3", "C4", "C5", "C6", 
-    "C#0/Db0", "C#1/Db1", "C#2/Db2", "C#3/Db3", "C#4/Db4", "C#5/Db5", "C#6/Db6", 
-    "D0", "D1", "D2", "D3", "D4", "D5", "D6", 
+    "C0", "C1", "C2", "C3", "C4", "C5", "C6",
+    "C#0/Db0", "C#1/Db1", "C#2/Db2", "C#3/Db3", "C#4/Db4", "C#5/Db5", "C#6/Db6",
+    "D0", "D1", "D2", "D3", "D4", "D5", "D6",
     "D#0/Eb0", "D#1/Eb1", "D#2/Eb2", "D#3/Eb3", "D#4/Eb4", "D#5/Eb5", "D#6/Eb6",
-    "E0", "E1", "E2", "E3", "E4", "E5", "E6", 
-    "F0", "F1", "F2", "F3", "F4", "F5", "F6", 
+    "E0", "E1", "E2", "E3", "E4", "E5", "E6",
+    "F0", "F1", "F2", "F3", "F4", "F5", "F6",
     "F#0/Gb0", "F#1/Gb1", "F#2/Gb2", "F#3/Gb3", "F#4/Gb4", "F#5/Gb5", "F#6/Gb6",
-    "G0", "G1", "G2", "G3", "G4", "G5", "G6", 
-    "G#0/Ab0", "G#1/Ab1", "G#2/Ab2", "G#3/Ab3", "G#4/Ab4", "G#5/Ab5", "G#6/Ab6", 
-    "A0", "A1", "A2", "A3", "A4", "A5", "A6", 
-    "A#0/Bb0", "A#1/Bb1", "A#2/Bb2", "A#3/Bb3", "A#4/Bb4", "A#5/Bb5", "A#6/Bb6", 
-    "B0", "B1", "B2", "B3", "B4", "B5", "B6", 
+    "G0", "G1", "G2", "G3", "G4", "G5", "G6",
+    "G#0/Ab0", "G#1/Ab1", "G#2/Ab2", "G#3/Ab3", "G#4/Ab4", "G#5/Ab5", "G#6/Ab6",
+    "A0", "A1", "A2", "A3", "A4", "A5", "A6",
+    "A#0/Bb0", "A#1/Bb1", "A#2/Bb2", "A#3/Bb3", "A#4/Bb4", "A#5/Bb5", "A#6/Bb6",
+    "B0", "B1", "B2", "B3", "B4", "B5", "B6",
     "RestRest", "rest"
 ]
 
