@@ -16,20 +16,10 @@ def resize2d_f0(x, target_len):
 
 
 def preprocess(ds):
-    note_list = ds["note_seq"]
-    midis = [librosa.note_to_midi(x.split("/")[0]) if x != 'rest' else 0
-                         for x in note_list.split(" ")]
-    f0_seq = None
-    if ds["f0_seq"] is not None:
-        f0_seq = [float(i.strip()) for i in ds["f0_seq"].split(" ")]
-        f0_seq = np.array(f0_seq)
-    phseq = ds["ph_seq"].split(" ")
-    newphseq = []
-    for ph in phseq:
-        newphseq.append(npu.ttsing_phone_to_int[ph])
-    phseq = newphseq
+    f0_seq = [float(i.strip()) for i in ds["f0_seq"].split(" ")]
+    f0_seq = np.array(f0_seq)
+    phseq = [npu.ttsing_phone_to_int[ph] for ph in ds["ph_seq"].split(" ")]
     phseq = np.array(phseq)
-    pitch = 440 * (2 ** ((np.array(midis) - 69) / 12))
     durations = [float(i) for i in ds["ph_dur"].split(" ")]
     accu_dur = 0
     accu_durs = []
@@ -41,14 +31,17 @@ def preprocess(ds):
     sub_durs = np.zeros_like(accu_durs)
     sub_durs[1:accu_durs.shape[0]] = accu_durs[:accu_durs.shape[0]-1]
     durations = accu_durs-sub_durs
+    new_phos = []
+    new_gtdurs = []
+    for ph, dur in zip(phseq, durations):
+        for i in range(int(dur)):
+            new_phos.append(ph)
+            new_gtdurs.append(1)
+    phseq = np.array(new_phos)
+    durations = np.array(new_gtdurs)
     f0_seq = resize2d_f0(f0_seq, sum(durations))
-    pos = 0
-    for i, d in enumerate(durations):
-        if phseq[i] == 0:
-            f0_seq[pos:pos + d] = 0
-        pos += d
 
-    return f0_seq,pitch, phseq, durations
+    return f0_seq,None, phseq, durations
 
 if __name__ == '__main__':
     inp = {
