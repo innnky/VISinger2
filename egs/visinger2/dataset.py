@@ -125,18 +125,18 @@ class SingDataset(BaseDataset):
         acc_duration_frames = np.ceil(acc_duration / (self.hps.data.hop_size / self.hps.data.sample_rate))
         gtdurs = acc_duration_frames[1:] - acc_duration_frames[:-1]
 
-        new_phos = []
-        new_gtdurs=[]
-        for ph, dur in zip(phos, gtdurs):
-            for i in range(int(dur)):
-                new_phos.append(ph)
-                new_gtdurs.append(1)
+        # new_phos = []
+        # new_gtdurs=[]
+        # for ph, dur in zip(phos, gtdurs):
+        #     for i in range(int(dur)):
+        #         new_phos.append(ph)
+        #         new_gtdurs.append(1)
 
-        phos = torch.LongTensor(new_phos)
+        phos = torch.LongTensor(phos)
         pitchs = torch.LongTensor(pitchs)
         durs = torch.FloatTensor(durs)
         slurs = torch.LongTensor(slurs)
-        gtdurs = torch.LongTensor(new_gtdurs)
+        gtdurs = torch.LongTensor(gtdurs)
         return phos, pitchs, durs, slurs, gtdurs
     def __getitem__(self, index):
 
