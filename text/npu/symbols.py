@@ -30,6 +30,10 @@ ttsing_phone_set = ['_'] + [
     # japanese-unique
     'gy.', 'my.', 'hy.', 'br', 'by.', 'v.', 'ty.', 'xx.', 'U.', 'I.', 'dy.'
 ]
+C_set = [
+    'g', 'sh', 't', 'r', 'y', 'ch', 'l', 'zh', 'j', 'k', 'h', 'm', 'q', 'z', 'x', 'f', 'w', 'b', 's', 'c', 'n', 'd', 'p'
+]
+
 
 ttsing_pitch_set = ['_'] + [
     "C0", "C1", "C2", "C3", "C4", "C5", "C6", "C#/Db0", "C#/Db1", "C#/Db2",

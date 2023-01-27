@@ -31,14 +31,18 @@ def preprocess(ds):
     sub_durs = np.zeros_like(accu_durs)
     sub_durs[1:accu_durs.shape[0]] = accu_durs[:accu_durs.shape[0]-1]
     durations = accu_durs-sub_durs
-    # new_phos = []
-    # new_gtdurs = []
-    # for ph, dur in zip(phseq, durations):
-    #     for i in range(int(dur)):
-    #         new_phos.append(ph)
-    #         new_gtdurs.append(1)
-    # phseq = np.array(new_phos)
-    # durations = np.array(new_gtdurs)
+    new_phos = []
+    new_gtdurs = []
+    last_ph = None
+    for ph, dur in zip(phseq, durations):
+        if ph != last_ph:
+            new_phos.append(ph)
+            new_gtdurs.append(dur)
+        else:
+            new_gtdurs[-1] += dur
+        last_ph = ph
+    phseq = np.array(new_phos)
+    durations = np.array(new_gtdurs)
     f0_seq = resize2d_f0(f0_seq, sum(durations))
 
     return f0_seq,None, phseq, durations
