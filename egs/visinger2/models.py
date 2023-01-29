@@ -15,7 +15,7 @@ import modules.modules as modules
 import modules.attentions as attentions
 
 from modules.commons import init_weights, get_padding
-from text.npu.symbols import ttsing_phone_set, ttsing_opencpop_pitch_set, ttsing_slur_set, C_set
+from text.npu.symbols import ttsing_phone_set, ttsing_opencpop_pitch_set, ttsing_slur_set
 
 from modules.ddsp import mlp, gru, scale_function, remove_above_nyquist, upsample
 from modules.ddsp import harmonic_synth, amp_to_impulse_response, fft_convolve
@@ -106,9 +106,6 @@ class TextEncoder(nn.Module):
         nn.init.normal_(self.emb_phone.weight, 0.0, 256 ** -0.5)
         self.emb_dur = torch.nn.Linear(1, 256)
 
-        self.emb_phone_type = nn.Embedding(2, 256)
-        nn.init.normal_(self.emb_phone_type.weight, 0.0, 256 ** -0.5)
-
         self.pre_net = torch.nn.Linear(256, hidden_channels)
 
         self.encoder = attentions.Encoder(
@@ -119,15 +116,11 @@ class TextEncoder(nn.Module):
             kernel_size,
             p_dropout)
         self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
-        self.C = torch.tensor([ttsing_phone_to_int[ph] for ph in C_set])
 
     def forward(self, phone, phone_lengths, gtdur):
-        phone_type = torch.eq(phone.unsqueeze(-1), self.C.to(phone.device).unsqueeze(0)).any(-1).long()
-
-        type_end = self.emb_phone_type(phone_type) * math.sqrt(256)
         phone_end = self.emb_phone(phone) * math.sqrt(256)
         dur_end = self.emb_dur((gtdur.float()*512/44100).unsqueeze(-1)).squeeze(1)
-        x = phone_end + dur_end + type_end
+        x = phone_end + dur_end
 
         x = self.pre_net(x)
         x = torch.transpose(x, 1, -1)  # [b, h, t]
