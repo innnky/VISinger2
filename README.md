@@ -23,11 +23,11 @@ data
 之后依次执行
 ```shell
 # 调整文件夹结构
-python preprocess/prepare_multispeaker.py
+python prepare_multispeaker.py
 # 生成mel与pitch
-python preprocess/preprocess.py
+python preprocess.py
 # 生成多说话人配置
-python preprocess/preprocess_multispeaker.py
+python preprocess_multispeaker.py
 # 之后将上一部生成的spk2id粘贴到配置文件egs/visinger2/config.json中
 ```
 ## 训练
