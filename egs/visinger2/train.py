@@ -148,13 +148,19 @@ def cpurun(rank, n_gpus, hps):
         hps.train.learning_rate,
         betas=hps.train.betas,
         eps=hps.train.eps)
+    skip_optimizer = True
     try:
         _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.train.save_dir, "G_*.pth"), net_g,
-                                                   optim_g)
-        _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.train.save_dir, "D_*.pth"), net_g,
-                                                   optim_g)
+                                                   optim_g, skip_optimizer)
+        _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.train.save_dir, "D_*.pth"), net_d,
+                                                   optim_d, skip_optimizer)
+        epoch_str = max(epoch_str, 1)
         global_step = (epoch_str - 1) * len(train_loader)
     except:
+        print("load old checkpoint failed...")
+        epoch_str = 1
+        global_step = 0
+    if skip_optimizer:
         epoch_str = 1
         global_step = 0
 
@@ -211,7 +217,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
             # spkid = spkid.cuda(rank, non_blocking=True)
 
         # forward
-        y_hat, ids_slice, predict_dur, predict_lf0, LF0, y_ddsp, kl_div, predict_mel, mask = net_g(phone, phone_lengths,
+        y_hat, ids_slice, predict_dur, loss_f0, LF0, y_ddsp, kl_div, predict_mel, mask = net_g(phone, phone_lengths,
                                                                                                    pitchid, dur, slur,
                                                                                                    gtdur, f0, mel,
                                                                                                    mel_lengths,
@@ -280,7 +286,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
         # loss
         y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
 
-        loss_f0 = F.mse_loss(predict_lf0 * mask, LF0 * mask) * 10
+        loss_f0 = torch.sum(loss_f0.float())
+
         loss_mel = F.l1_loss(y_mel, y_hat_mel) * 45
         loss_mel_dsp = F.l1_loss(y_mel, y_ddsp_mel) * 45
         loss_spec_dsp = F.l1_loss(y_logspec, y_ddsp_logspec) * 45
@@ -357,6 +364,10 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, loaders, logg
                                       os.path.join(hps.train.save_dir, "G_{}.pth".format(global_step)))
                 utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch,
                                       os.path.join(hps.train.save_dir, "D_{}.pth".format(global_step)))
+                keep_ckpts = getattr(hps.train, 'keep_ckpts', 2)
+                if keep_ckpts > 0:
+                    utils.clean_checkpoints(path_to_models=hps.train.save_dir, n_ckpts_to_keep=keep_ckpts, sort_by_time=True)
+
                 net_g.train()
         global_step += 1
 
@@ -403,7 +414,11 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             mel = mel[:1]
             f0 = f0[:1]
             break
-        y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur)
+        if (use_cuda):
+            y_hat, y_harm, y_noise = generator.module.infer(phone, phone_lengths, pitchid, dur, slur)
+        else:
+            y_hat, y_harm, y_noise = generator.infer(phone, phone_lengths, pitchid, dur, slur)
+
         spec = spectrogram_torch(
             wav.squeeze(1),
             hps.data.n_fft,
