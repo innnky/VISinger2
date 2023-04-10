@@ -67,7 +67,7 @@ def process(args, hps):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',
-                        default='config.json',
+                        default='egs/visinger2/config.json',
                         help='json files for configurations.')
     parser.add_argument('--num_workers', type=int, default=int(cpu_count()) // 2)
 
